@@ -1,4 +1,4 @@
-# RAG PDF App (Retrieval-Augmented Generation)
+# PDFInsight
 
 A full-stack **Retrieval-Augmented Generation (RAG)** web application that allows users to upload PDFs and ask questions about the content they upload. The system uses embeddings + vector search to retrieve relevant context and generate AI-powered answers using Google Gemini.
 
