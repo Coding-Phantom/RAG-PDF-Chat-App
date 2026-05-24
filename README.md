@@ -6,11 +6,11 @@ A full-stack **Retrieval-Augmented Generation (RAG)** web application that allow
 
 ## Features
 
-- 📁 Upload and manage PDF documents
-- 🤖 Ask questions about uploaded PDFs
-- 🧠 Responses using Gemini LLM, with given context chunks
-- 📌 List source citations used in context for AI response
-- 🗂️ Can select/deselect from multiple PDFs to add/remove context for the LLM to read
+- Upload and manage PDF documents
+- Ask questions about uploaded PDFs
+- Responses using Gemini LLM, with given context chunks
+- List source citations used in context for AI response
+- Can select/deselect from multiple PDFs to add/remove context for the LLM to read
 
 ---
 
