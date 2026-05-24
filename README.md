@@ -69,3 +69,15 @@ python main.py (Backend)
 npm run dev (Frontend)
 
 ```
+
+## Future Features
+
+- Authentication
+- Improved dashboard
+- AI Response typing animation (vs one chunk of text spawning)
+- More advanced PDF Viewer that can highlight citations from AI response and show PDF source
+- Persists chat history
+- Suggested questions based on the PDF context
+- Improved RAG retrieval
+- Rate limiting to prevent spam
+- Admin page
