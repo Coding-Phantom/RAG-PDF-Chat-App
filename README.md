@@ -1,10 +1,10 @@
-# 📄 RAG PDF App (Retrieval-Augmented Generation)
+# RAG PDF App (Retrieval-Augmented Generation)
 
 A full-stack **Retrieval-Augmented Generation (RAG)** web application that allows users to upload PDFs and ask questions about the content they upload. The system uses embeddings + vector search to retrieve relevant context and generate AI-powered answers using Google Gemini.
 
 ---
 
-## 🚀 Features
+## Features
 
 - 📁 Upload and manage PDF documents
 - 🤖 Ask questions about uploaded PDFs
@@ -14,7 +14,7 @@ A full-stack **Retrieval-Augmented Generation (RAG)** web application that allow
 
 ---
 
-## 🧠 Tech Stack
+## Tech Stack
 
 ### Backend
 - **FastAPI** – REST API server
@@ -35,30 +35,37 @@ A full-stack **Retrieval-Augmented Generation (RAG)** web application that allow
 ## ⚙️ Installation
 
 
-### 📦 Create and activate virtual environment
+### Create and activate virtual environment
 
 ```bash
 python -m venv venv
 
-Windows
-
 venv\Scripts\activate
-📥 Install dependencies
+
+```
+
+Install dependencies
+```bash
 pip install -r requirements.txt
-🔐 Create environment file
+```
+
+Create environment file
 
 Create a .env file in the backend folder:
 
+```
 GEMINI_API_KEY=your_api_key_here
+```
 
 Note: API key is not included in the project for security reasons.
 
 🚀 Run the project
 
-Backend
 
-python main.py
 
-Frontend
+```bash
+python main.py (Backend)
 
-npm run dev
+npm run dev (Frontend)
+
+```
