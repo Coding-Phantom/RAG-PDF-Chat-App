@@ -2,7 +2,7 @@ from pathlib import Path
 from uuid import uuid4 # uuid for identifying pdfs
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, UploadFile
+from fastapi import Depends, FastAPI, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
@@ -11,10 +11,18 @@ import uvicorn
 
 # database imports
 from db import create_pdf_record
+from db import create_user
 from db import delete_pdf_record
 from db import get_pdf_record
+from db import get_user_by_username
 from db import initialize_database
 from db import list_pdf_records
+
+# auth imports
+from auth import create_access_token
+from auth import get_current_user_dependency
+from auth import hash_password
+from auth import verify_password
 
 # rag imports
 from rag import answer_question_with_context
@@ -31,7 +39,7 @@ CHROMA_DIR = BACKEND_DIR / "chroma_db"
 DATA_DIR = BACKEND_DIR / "data"
 DB_PATH = DATA_DIR / "app.db"
 
-load_dotenv(BACKEND_DIR / ".env") # load api
+load_dotenv(BACKEND_DIR / ".env") # load api / secrets
 initialize_database(DB_PATH) # load database
 
 app = FastAPI(title="PDF RAG API")
@@ -76,6 +84,19 @@ class AskResponse(BaseModel):
     answer: str
     sources: list[Source]
 
+# auth models
+class RegisterRequest(BaseModel):
+    username: str
+    password: str
+
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
+class TokenResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+
 # make all text into string for consistency
 def normalize_model_message(message: object) -> str:
     if isinstance(message, list):
@@ -87,23 +108,69 @@ def normalize_model_message(message: object) -> str:
 
     return str(message)
 
+# checks if user is authenticated with jwt, most endpoints will have this
+get_current_user = get_current_user_dependency(DB_PATH)
 
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
+@app.post("/register")
+def register(body: RegisterRequest) -> dict[str, str]:
+
+    # user inputs username and password
+    username = body.username.strip()
+    password = body.password.strip()
+    # in frontend, add additional password confirmation
+
+    if not username or not password:
+        raise HTTPException(status_code=400, detail="Username and password are required")
+
+    # no dupe usernames
+    if get_user_by_username(DB_PATH, username) is not None:
+        raise HTTPException(status_code=400, detail="Username already taken")
+
+    # hash password and create user to database
+    hashed = hash_password(password)
+    create_user(DB_PATH, username, hashed)
+    return {"status": "created", "username": username}
+
+
+@app.post("/login", response_model=TokenResponse)
+def login(body: LoginRequest) -> TokenResponse:
+
+    # user inputs username and password, check if in db
+    username = body.username.strip()
+    password = body.password.strip()
+    user = get_user_by_username(DB_PATH, username)
+    if user is None or not verify_password(password, user["hashed_password"]):
+        raise HTTPException(status_code=401, detail="Invalid username or password")
+
+    # create token for login, will be used in most endpoints to check authentication
+    token = create_access_token(data={"sub": username})
+    return TokenResponse(access_token=token)
+
 
 # obtain pdf list from database to show whats available in frontend
 @app.get("/pdfs", response_model=list[PDFRecord])
-def list_pdfs() -> list[dict[str, str]]:
-    return list_pdf_records(DB_PATH)
+def list_pdfs(current_user: dict[str, str] = Depends(get_current_user)) -> list[dict[str, str]]:
+    return list_pdf_records(DB_PATH, current_user["username"])
 
 # upload pdfs
 @app.post("/pdfs", response_model=UploadPdfResponse)
-async def upload_pdf(file: UploadFile) -> UploadPdfResponse: # UploadFile allows FastAPI to show file upload in docs
+async def upload_pdf(
+    file: UploadFile,
+    current_user: dict[str, str] = Depends(get_current_user),
+) -> UploadPdfResponse: # UploadFile allows FastAPI to show file upload in docs
     if not file.filename or not file.filename.lower().endswith(".pdf"): # .pdf check
         raise HTTPException(status_code=400, detail="Please upload a PDF file")
+    
+    if file.size is None:
+        raise HTTPException(status_code=400, detail="Could not determine file size")
+
+    if file.size > 50 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="File size exceeds 50MB limit")
 
     # file sucessfully uploaded
     pdf_id = str(uuid4()) # random id
@@ -131,6 +198,7 @@ async def upload_pdf(file: UploadFile) -> UploadPdfResponse: # UploadFile allows
         pdf = create_pdf_record(
             db_path=DB_PATH,
             pdf_id=pdf_id,
+            username=current_user["username"],
             filename=safe_filename,
             file_path=pdf_path,
         )
@@ -157,9 +225,12 @@ async def upload_pdf(file: UploadFile) -> UploadPdfResponse: # UploadFile allows
 
 # uses id to delete pdf record from sqllite chroma, and local uploads
 @app.delete("/pdfs/{pdf_id}")
-def delete_pdf(pdf_id: str) -> dict[str, str]:
+def delete_pdf(
+    pdf_id: str,
+    current_user: dict[str, str] = Depends(get_current_user),
+) -> dict[str, str]:
 
-    pdf = delete_pdf_record(DB_PATH, pdf_id)
+    pdf = delete_pdf_record(DB_PATH, pdf_id, current_user["username"])
     if pdf is None: # check if pdf exists
         raise HTTPException(status_code=404, detail="PDF not found")
 
@@ -174,9 +245,12 @@ def delete_pdf(pdf_id: str) -> dict[str, str]:
 
 # serve pdf file for viewing
 @app.get("/pdfs/{pdf_id}/file")
-def view_pdf_file(pdf_id: str) -> FileResponse:
+def view_pdf_file(
+    pdf_id: str,
+    current_user: dict[str, str] = Depends(get_current_user),
+) -> FileResponse:
     pdf = get_pdf_record(DB_PATH, pdf_id)
-    if pdf is None:
+    if pdf is None or pdf.get("username") != current_user["username"]:
         raise HTTPException(status_code=404, detail="PDF not found")
 
     pdf_path = Path(pdf["file_path"])
@@ -194,13 +268,22 @@ def view_pdf_file(pdf_id: str) -> FileResponse:
 
 # Gemini Ask Question API
 @app.post("/ask", response_model=AskResponse)
-def ask_question(request: AskRequest) -> AskResponse: # AskRequest contains question + list of pdfs (single or many)
+def ask_question(
+    request: AskRequest,
+    current_user: dict[str, str] = Depends(get_current_user),
+) -> AskResponse: # AskRequest contains question + list of pdfs (single or many)
     question = request.question.strip()
     if not question:
         raise HTTPException(status_code=400, detail="Question is required")
 
     if not request.pdf_ids:
         raise HTTPException(status_code=400, detail="Select at least one PDF")
+
+    user_pdfs = list_pdf_records(DB_PATH, current_user["username"])
+    valid_ids = {p["id"] for p in user_pdfs}
+    for pid in request.pdf_ids:
+        if pid not in valid_ids:
+            raise HTTPException(status_code=404, detail=f"PDF {pid} not found")
 
     context_documents = search_pdf_context(
         question=question,
