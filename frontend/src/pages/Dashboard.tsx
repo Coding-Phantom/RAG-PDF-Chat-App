@@ -1,13 +1,13 @@
 import { useEffect, useState } from 'react'
 import {
-  askQuestion,
   clearToken,
   deletePdf,
   getPdfs,
   getUsernameFromToken,
+  streamAskQuestion,
   uploadPdf,
-  type AskResponse,
   type PdfRecord,
+  type Source,
 } from '../api'
 
 import ReactMarkdown from 'react-markdown'
@@ -20,7 +20,8 @@ export default function Dashboard() {
   const [deletingPdfId, setDeletingPdfId] = useState('')
   const [selectedPdfIds, setSelectedPdfIds] = useState<string[]>([])
   const [question, setQuestion] = useState('')
-  const [askResult, setAskResult] = useState<AskResponse | null>(null)
+  const [streamingAnswer, setStreamingAnswer] = useState('')
+  const [answerSources, setAnswerSources] = useState<Source[]>([])
   const [isAsking, setIsAsking] = useState(false)
   const [error, setError] = useState('')
   const [viewingPdf, setViewingPdf] = useState<PdfRecord | null>(null)
@@ -110,20 +111,25 @@ export default function Dashboard() {
     }
 
     setError('')
-    setAskResult(null)
+    setStreamingAnswer('')
+    setAnswerSources([])
     setIsAsking(true)
 
     try {
-      const result = await askQuestion(trimmedQuestion, selectedPdfIds)
-      setAskResult(result)
+      await streamAskQuestion(
+        trimmedQuestion,
+        selectedPdfIds,
+        (token) => setStreamingAnswer((prev) => prev + token),
+        (sources) => setAnswerSources(sources),
+        () => setIsAsking(false),
+      )
     } catch (caughtError) {
+      setIsAsking(false)
       setError(
         caughtError instanceof Error
           ? caughtError.message
           : 'Could not answer question',
       )
-    } finally {
-      setIsAsking(false)
     }
   }
 
@@ -250,24 +256,23 @@ export default function Dashboard() {
           </button>
         </section>
 
-        {isAsking ? (
-          <p className="mb-4 font-mono text-sm text-gray-400">Thinking...</p>
-        ) : null}
-
-        {askResult ? (
+        {streamingAnswer ? (
           <section className="rounded bg-gray-800 p-4">
             <div className="prose prose-invert max-w-none font-mono text-lg leading-6">
-              <ReactMarkdown>{askResult.answer}</ReactMarkdown>
+              <ReactMarkdown>{streamingAnswer}</ReactMarkdown>
+              {isAsking ? (
+                <span className="ml-0.5 inline-block h-5 w-2 animate-pulse bg-blue-400 align-middle" />
+              ) : null}
             </div>
 
-            {askResult.sources.length > 0 ? (
+            {answerSources.length > 0 ? (
               <div className="mt-5 border-t border-gray-700 pt-4">
                 <h2 className="mb-3 font-mono text-sm font-bold text-blue-400">
                   Sources
                 </h2>
 
                 <ul className="space-y-3">
-                  {askResult.sources.map((source, index) => (
+                  {answerSources.map((source, index) => (
                     <li
                       key={`${source.pdf_id}-${source.page}-${index}`}
                       className="rounded border border-gray-700 bg-gray-900 p-3"

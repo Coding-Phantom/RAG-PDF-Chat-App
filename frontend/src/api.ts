@@ -153,3 +153,51 @@ export async function askQuestion(
 
   return parseResponse<AskResponse>(response)
 }
+
+export async function streamAskQuestion(
+  question: string,
+  pdfIds: string[],
+  onToken: (token: string) => void,
+  onSources: (sources: Source[]) => void,
+  onDone: () => void,
+): Promise<void> {
+  const response = await authFetch(`${API_URL}/ask/stream`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ question, pdf_ids: pdfIds }),
+  })
+
+  if (!response.ok) {
+    const data = await response.json().catch(() => null)
+    throw new Error(data?.detail ?? 'Failed to ask question')
+  }
+
+  const reader = response.body!.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ''
+
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+
+    buffer += decoder.decode(value, { stream: true })
+    const lines = buffer.split('\n')
+    buffer = lines.pop() || ''
+
+    for (const line of lines) {
+      if (!line.startsWith('data: ')) continue
+      try {
+        const data = JSON.parse(line.slice(6).trim())
+        if (data.type === 'token') {
+          onToken(data.content)
+        } else if (data.type === 'sources') {
+          onSources(data.content)
+        } else if (data.type === 'done') {
+          onDone()
+        }
+      } catch {
+        // skip malformed lines
+      }
+    }
+  }
+}

@@ -45,8 +45,7 @@ def index_pdf_in_chroma(
     pdf_path: str | Path,
     persist_directory: str | Path,
     pdf_id: str,
-    display_filename: str | None = None,
-) -> int:
+    display_filename: str | None = None,) -> int:
     path = Path(pdf_path)
     chunks = load_and_split_pdf(path)
 
@@ -74,8 +73,7 @@ def search_pdf_context(
     question: str,
     persist_directory: str | Path,
     pdf_ids: list[str],
-    k: int = 5,
-) -> list[Document]:
+    k: int = 5,) -> list[Document]:
     if not pdf_ids:
         return []
 
@@ -88,7 +86,7 @@ def search_pdf_context(
         filter=filter_query,
     )
 
-# answer given context from question
+# answer given context from question (non-streamed)
 def answer_question_with_context(question: str, context_documents: list[Document]) -> str:
     context = "\n\n".join(
         f"Source: {document.metadata.get('filename', 'unknown')}, "
@@ -130,3 +128,47 @@ Question:
         )
 
     return str(message)
+
+# streaming gemini response
+# chunks answer as they are generated, rather then send single blob of text
+def stream_answer_with_context(question: str, context_documents: list[Document]):
+    context = "\n\n".join(
+        f"Source: {document.metadata.get('filename', 'unknown')}, "
+        f"page {document.metadata.get('page', 'unknown')}\n"
+        f"{document.page_content}"
+        for document in context_documents
+    )
+
+    prompt = f"""
+You are a helpful assistant answering questions about uploaded PDFs.
+Use only the context below. If the answer is not in the context, say you do not know.
+
+Use proper markdown formatting:
+- Use bullet points
+- Use spacing between sections
+- Bold important move names
+- Make the answer readable
+- Be concise
+- Always format as bullet points with proper line breaks between items. Add another line break if needed for readability.
+- Never use long paragraphs for multiple items.
+- Format output in clean Markdown. Use blank lines between bullet sections and paragraphs. Do not rely on single line breaks.
+
+Context:
+{context}
+
+Question:
+{question}
+""".strip()
+
+    model = ChatGoogleGenerativeAI(model=CHAT_MODEL)
+    # chunnks are sent in
+    for chunk in model.stream([HumanMessage(content=prompt)]):
+        content = chunk.content
+        if isinstance(content, str) and content:
+            yield content
+        elif isinstance(content, list):
+            for part in content:
+                if isinstance(part, dict):
+                    text = part.get("text", "")
+                    if text:
+                        yield text
