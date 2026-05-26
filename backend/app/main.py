@@ -4,6 +4,7 @@ from uuid import uuid4 # uuid for identifying pdfs
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from langchain_google_genai import ChatGoogleGenerativeAI
 import uvicorn
@@ -11,6 +12,7 @@ import uvicorn
 # database imports
 from db import create_pdf_record
 from db import delete_pdf_record
+from db import get_pdf_record
 from db import initialize_database
 from db import list_pdf_records
 
@@ -168,6 +170,27 @@ def delete_pdf(pdf_id: str) -> dict[str, str]:
         pdf_path.unlink()
 
     return {"status": "deleted", "pdf_id": pdf_id} # return id + deleted pdf
+
+
+# serve pdf file for viewing
+@app.get("/pdfs/{pdf_id}/file")
+def view_pdf_file(pdf_id: str) -> FileResponse:
+    pdf = get_pdf_record(DB_PATH, pdf_id)
+    if pdf is None:
+        raise HTTPException(status_code=404, detail="PDF not found")
+
+    pdf_path = Path(pdf["file_path"])
+    if not pdf_path.exists():
+        raise HTTPException(status_code=404, detail="PDF file not found on disk")
+
+    # allows for pdf viewing in browser without download
+    return FileResponse(
+        pdf_path,
+        media_type="application/pdf",
+        filename=pdf["filename"],
+        headers={"Content-Disposition": f'inline; filename="{pdf["filename"]}"'},
+    )
+
 
 # Gemini Ask Question API
 @app.post("/ask", response_model=AskResponse)

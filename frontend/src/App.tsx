@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import {
   askQuestion,
   deletePdf,
+  getPdfFileUrl,
   getPdfs,
   uploadPdf,
   type AskResponse,
@@ -9,6 +10,12 @@ import {
 } from './api'
 
 import ReactMarkdown from 'react-markdown'
+import { Document, Page, pdfjs } from 'react-pdf'
+import 'react-pdf/dist/Page/TextLayer.css'
+import 'react-pdf/dist/Page/AnnotationLayer.css'
+
+import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
+pdfjs.GlobalWorkerOptions.workerSrc = workerUrl
 
 // state for pdfs, loading, uploading, deleting, selection, question, result, asking, error
 function App() {
@@ -21,6 +28,9 @@ function App() {
   const [askResult, setAskResult] = useState<AskResponse | null>(null)
   const [isAsking, setIsAsking] = useState(false)
   const [error, setError] = useState('')
+  const [viewingPdf, setViewingPdf] = useState<PdfRecord | null>(null)
+  const [numPages, setNumPages] = useState<number | null>(null)
+  const [pdfPage, setPdfPage] = useState(1)
 
   useEffect(() => {
     async function loadPdfs() { // load pdfs from API
@@ -197,14 +207,24 @@ function App() {
                     </div>
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={() => handleDelete(pdf.id)}
-                    disabled={deletingPdfId === pdf.id}
-                    className="shrink-0 rounded border border-red-400 px-3 py-1.5 text-xs font-semibold text-red-200 hover:bg-red-950 disabled:cursor-not-allowed disabled:border-gray-600 disabled:text-gray-500"
-                  >
-                    {deletingPdfId === pdf.id ? 'Deleting...' : 'Delete'}
-                  </button>
+                  <div className="flex shrink-0 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setViewingPdf(pdf)}
+                      className="rounded border border-blue-500 px-3 py-1.5 text-xs font-semibold text-blue-300 hover:bg-blue-950"
+                    >
+                      View
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleDelete(pdf.id)}
+                      disabled={deletingPdfId === pdf.id}
+                      className="rounded border border-red-400 px-3 py-1.5 text-xs font-semibold text-red-200 hover:bg-red-950 disabled:cursor-not-allowed disabled:border-gray-600 disabled:text-gray-500"
+                    >
+                      {deletingPdfId === pdf.id ? 'Deleting...' : 'Delete'}
+                    </button>
+                  </div>
                 </li>
               ))}
             </ul>
@@ -264,6 +284,69 @@ function App() {
               </div>
             ) : null}
           </section>
+        ) : null}
+        {viewingPdf ? (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+            <div className="flex h-full w-full max-w-5xl flex-col rounded bg-gray-900">
+              <div className="flex items-center justify-between border-b border-gray-700 px-4 py-3">
+                <h2 className="truncate font-mono text-sm font-bold text-blue-400">
+                  {viewingPdf.filename}
+                </h2>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setViewingPdf(null)
+                    setNumPages(null)
+                    setPdfPage(1)
+                  }}
+                  className="rounded px-3 py-1 font-mono text-sm text-gray-400 hover:bg-gray-800 hover:text-white"
+                >
+                  Close
+                </button>
+              </div>
+              <div className="flex flex-1 flex-col items-center overflow-auto p-4">
+                <Document
+                  file={getPdfFileUrl(viewingPdf.id)}
+                  onLoadSuccess={({ numPages: n }) => {
+                    setNumPages(n)
+                    setPdfPage(1)
+                  }}
+                  className="flex flex-col items-center"
+                >
+                  <Page
+                    pageNumber={pdfPage}
+                    renderTextLayer
+                    renderAnnotationLayer
+                    className="shadow-xl"
+                    width={Math.min(window.innerWidth * 0.8, 900)}
+                  />
+                </Document>
+              </div>
+              {numPages ? (
+                <div className="flex items-center justify-center gap-4 border-t border-gray-700 px-4 py-3 font-mono text-sm">
+                  <button
+                    type="button"
+                    disabled={pdfPage <= 1}
+                    onClick={() => setPdfPage((p) => Math.max(1, p - 1))}
+                    className="rounded px-3 py-1 text-blue-300 hover:bg-gray-800 disabled:text-gray-600"
+                  >
+                    Prev
+                  </button>
+                  <span className="text-gray-300">
+                    {pdfPage} / {numPages}
+                  </span>
+                  <button
+                    type="button"
+                    disabled={pdfPage >= numPages}
+                    onClick={() => setPdfPage((p) => Math.min(numPages, p + 1))}
+                    className="rounded px-3 py-1 text-blue-300 hover:bg-gray-800 disabled:text-gray-600"
+                  >
+                    Next
+                  </button>
+                </div>
+              ) : null}
+            </div>
+          </div>
         ) : null}
       </div>
     </main>

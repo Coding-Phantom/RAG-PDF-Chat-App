@@ -67,6 +67,11 @@ export async function deletePdf(pdfId: string): Promise<void> {
   await parseResponse<{ status: string; pdf_id: string }>(response)
 }
 
+// get pdf file url for viewing
+export function getPdfFileUrl(pdfId: string): string {
+  return `${API_URL}/pdfs/${pdfId}/file`
+}
+
 // ask question
 export async function askQuestion(
   question: string,
