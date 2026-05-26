@@ -1,10 +1,11 @@
+import json
 from pathlib import Path
 from uuid import uuid4 # uuid for identifying pdfs
 
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel
 from langchain_google_genai import ChatGoogleGenerativeAI
 import uvicorn
@@ -30,6 +31,7 @@ from rag import delete_pdf_from_chroma
 from rag import EMBEDDING_MODEL
 from rag import index_pdf_in_chroma
 from rag import search_pdf_context
+from rag import stream_answer_with_context
 
 
 # generalizing backend path
@@ -266,7 +268,7 @@ def view_pdf_file(
     )
 
 
-# Gemini Ask Question API
+# Gemini Ask Question API (non streamed)
 @app.post("/ask", response_model=AskResponse)
 def ask_question(
     request: AskRequest,
@@ -306,6 +308,55 @@ def ask_question(
     ]
 
     return AskResponse(answer=answer, sources=sources)
+
+
+# Streaming Response to chunks from Gemini Ask Question
+@app.post("/ask/stream")
+def ask_question_stream(
+    request: AskRequest,
+    current_user: dict[str, str] = Depends(get_current_user),) -> StreamingResponse:
+
+    # Get question for search context for based on PDF
+    question = request.question.strip()
+    if not question:
+        raise HTTPException(status_code=400, detail="Question is required")
+
+    if not request.pdf_ids:
+        raise HTTPException(status_code=400, detail="Select at least one PDF")
+
+    user_pdfs = list_pdf_records(DB_PATH, current_user["username"])
+    valid_ids = {p["id"] for p in user_pdfs}
+    for pid in request.pdf_ids:
+        if pid not in valid_ids:
+            raise HTTPException(status_code=404, detail=f"PDF {pid} not found")
+
+    context_documents = search_pdf_context(
+        question=question,
+        persist_directory=CHROMA_DIR,
+        pdf_ids=request.pdf_ids,
+    )
+
+    if not context_documents:
+        raise HTTPException(status_code=404, detail="No matching context found")
+
+    # Answer is streamed back as
+    def generate():
+        for token in stream_answer_with_context(question, context_documents):
+            yield f"data: {json.dumps({'type': 'token', 'content': token})}\n\n"
+
+        sources = [
+            {
+                "pdf_id": str(document.metadata.get("pdf_id", "")),
+                "filename": str(document.metadata.get("filename", "")),
+                "page": document.metadata.get("page", "unknown"),
+                "snippet": document.page_content[:300],
+            }
+            for document in context_documents
+        ]
+        yield f"data: {json.dumps({'type': 'sources', 'content': sources})}\n\n"
+        yield f"data: {json.dumps({'type': 'done'})}\n\n"
+
+    return StreamingResponse(generate(), media_type="text/event-stream")
 
 
 if __name__ == "__main__":
