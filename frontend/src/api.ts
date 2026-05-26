@@ -1,7 +1,47 @@
 const API_URL = 'http://127.0.0.1:8000'
 
+// token management via local storage
+function getToken(): string | null {
+  return localStorage.getItem('token')
+}
 
-// TypeScript types = python pydantic models to use for json parsing
+export function setToken(token: string): void {
+  localStorage.setItem('token', token)
+}
+
+export function clearToken(): void {
+  localStorage.removeItem('token')
+}
+
+export function isLoggedIn(): boolean {
+  return getToken() !== null
+}
+
+export function getUsernameFromToken(): string | null {
+  const token = getToken()
+  if (!token) return null
+
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]))
+    return payload.sub ?? null
+  } catch {
+    return null
+  }
+}
+
+// sets the Authorization header for authenticated requests
+async function authFetch(url: string, options: RequestInit = {}): Promise<Response> {
+  const token = getToken()
+  const headers = new Headers(options.headers)
+
+  if (token) {
+    headers.set('Authorization', `Bearer ${token}`)
+  }
+
+  return fetch(url, { ...options, headers })
+}
+
+// TypeScript types
 export type PdfRecord = {
   id: string
   filename: string
@@ -26,7 +66,11 @@ export type AskResponse = {
   sources: Source[]
 }
 
-// parse response from backend
+export type LoginResponse = {
+  access_token: string
+  token_type: string
+}
+
 async function parseResponse<T>(response: Response): Promise<T> {
   const data = await response.json().catch(() => null)
 
@@ -38,19 +82,38 @@ async function parseResponse<T>(response: Response): Promise<T> {
   return data as T
 }
 
-/* API functions */
+/* Auth */
+
+export async function register(username: string, password: string): Promise<void> {
+  const response = await fetch(`${API_URL}/register`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username, password }),
+  })
+  await parseResponse<Record<string, string>>(response)
+}
+
+export async function login(username: string, password: string): Promise<LoginResponse> {
+  const response = await fetch(`${API_URL}/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username, password }),
+  })
+  return parseResponse<LoginResponse>(response)
+}
+
+/* PDFs */
 
 export async function getPdfs(): Promise<PdfRecord[]> {
-  const response = await fetch(`${API_URL}/pdfs`)
+  const response = await authFetch(`${API_URL}/pdfs`)
   return parseResponse<PdfRecord[]>(response)
 }
 
-// upload pdf, Promise waits for file
 export async function uploadPdf(file: File): Promise<UploadPdfResponse> {
-  const formData = new FormData() // file prompt
+  const formData = new FormData()
   formData.append('file', file)
 
-  const response = await fetch(`${API_URL}/pdfs`, {
+  const response = await authFetch(`${API_URL}/pdfs`, {
     method: 'POST',
     body: formData,
   })
@@ -58,34 +121,34 @@ export async function uploadPdf(file: File): Promise<UploadPdfResponse> {
   return parseResponse<UploadPdfResponse>(response)
 }
 
-// delete pdf by id
 export async function deletePdf(pdfId: string): Promise<void> {
-  const response = await fetch(`${API_URL}/pdfs/${pdfId}`, {
+  const response = await authFetch(`${API_URL}/pdfs/${pdfId}`, {
     method: 'DELETE',
   })
 
   await parseResponse<{ status: string; pdf_id: string }>(response)
 }
 
-// get pdf file url for viewing
-export function getPdfFileUrl(pdfId: string): string {
-  return `${API_URL}/pdfs/${pdfId}/file`
+export async function fetchPdfBlobUrl(pdfId: string): Promise<string> {
+  const response = await authFetch(`${API_URL}/pdfs/${pdfId}/file`)
+
+  if (!response.ok) {
+    const data = await response.json().catch(() => null)
+    throw new Error(data?.detail ?? 'Failed to fetch PDF')
+  }
+
+  const blob = await response.blob()
+  return URL.createObjectURL(blob)
 }
 
-// ask question
 export async function askQuestion(
   question: string,
   pdfIds: string[],
 ): Promise<AskResponse> {
-  const response = await fetch(`${API_URL}/ask`, {
+  const response = await authFetch(`${API_URL}/ask`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      question,
-      pdf_ids: pdfIds,
-    }),
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ question, pdf_ids: pdfIds }),
   })
 
   return parseResponse<AskResponse>(response)
