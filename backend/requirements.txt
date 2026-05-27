@@ -6,6 +6,7 @@ langchain
 langchain-google-genai
 langchain-community
 pypdf
+langchain-chroma
 chromadb
 python-dotenv
 passlib[bcrypt]

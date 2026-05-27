@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from langchain_community.document_loaders import PyPDFLoader
-from langchain_community.vectorstores import Chroma
+from langchain_chroma import Chroma
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_core.documents import Document
 from langchain_core.messages import HumanMessage
@@ -10,9 +10,11 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 
 
 COLLECTION_NAME = "pdf_chunks"
-# change model temporarily when out of tokens
+# gemini-3.5-flash default model, change model temporarily when out of tokens
 EMBEDDING_MODEL = "models/gemini-embedding-001"
-CHAT_MODEL = "gemini-3.5-flash"
+CHAT_MODEL = "gemini-2.5-flash"
+# CHAT_MODEL = "gemini-2.5-flash"
+# CHAT_MODEL = "gemini-3.5-flash" 
 
 
 def load_and_split_pdf(pdf_path: str | Path) -> list[Document]:

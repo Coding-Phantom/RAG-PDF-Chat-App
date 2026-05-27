@@ -212,7 +212,7 @@ async def upload_pdf(
             pdf_id=pdf_id,
             username=current_user["username"],
             filename=safe_filename,
-            file_path=pdf_path,
+            file_path=stored_filename,
         )
     except Exception as error:
         if pdf_path.exists():
@@ -248,7 +248,7 @@ def delete_pdf(
 
     delete_pdf_from_chroma(CHROMA_DIR, pdf_id) # delete from chroma
 
-    pdf_path = Path(pdf["file_path"]) # delete from uploads
+    pdf_path = UPLOAD_DIR / Path(pdf["file_path"]) # delete from uploads
     if pdf_path.exists():
         pdf_path.unlink()
 
@@ -265,11 +265,10 @@ def view_pdf_file(
     if pdf is None or pdf.get("username") != current_user["username"]:
         raise HTTPException(status_code=404, detail="PDF not found")
 
-    pdf_path = Path(pdf["file_path"])
+    pdf_path = UPLOAD_DIR / Path(pdf["file_path"])
     if not pdf_path.exists():
         raise HTTPException(status_code=404, detail="PDF file not found on disk")
 
-    # allows for pdf viewing in browser without download
     return FileResponse(
         pdf_path,
         media_type="application/pdf",
@@ -400,4 +399,4 @@ def ask_question_stream(
 
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="127.0.0.1", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=8000)

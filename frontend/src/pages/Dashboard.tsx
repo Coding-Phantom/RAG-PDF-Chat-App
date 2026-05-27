@@ -31,6 +31,9 @@ export default function Dashboard() {
   const [viewingPdfPage, setViewingPdfPage] = useState(1)
   const [history, setHistory] = useState<ChatHistoryEntry[]>([])
   const [deletingHistoryId, setDeletingHistoryId] = useState('')
+  const [selectedHistoryId, setSelectedHistoryId] = useState('')
+  const [sourceError, setSourceError] = useState('')
+  const [sidebarOpen, setSidebarOpen] = useState(false)
 
   useEffect(() => {
     async function loadPdfs() {
@@ -115,11 +118,14 @@ export default function Dashboard() {
   }
 
   function handleSourceClick(source: Source) {
+    setSourceError('')
     const pdf = pdfs.find((p) => p.id === source.pdf_id)
     if (pdf) {
       const page = typeof source.page === 'string' ? parseInt(source.page) || 1 : source.page
       setViewingPdfPage(page)
       setViewingPdf(pdf)
+    } else {
+      setSourceError(`"${source.filename}" is no longer available for viewing.`)
     }
   }
 
@@ -127,6 +133,7 @@ export default function Dashboard() {
     setStreamingAnswer(entry.answer)
     setAnswerSources(JSON.parse(entry.sources))
     setQuestion('')
+    setSelectedHistoryId(entry.id)
   }
 
   async function handleDeleteHistory(entryId: string) {
@@ -155,8 +162,10 @@ export default function Dashboard() {
     }
 
     setError('')
+    setSourceError('')
     setStreamingAnswer('')
     setAnswerSources([])
+    setSelectedHistoryId('')
     setIsAsking(true)
 
     try {
@@ -182,7 +191,11 @@ export default function Dashboard() {
 
   return (
     <div className="flex min-h-screen bg-gray-900 text-white">
-      <aside className="flex w-72 shrink-0 flex-col border-r border-gray-700">
+      {sidebarOpen && (
+        <div className="fixed inset-0 z-30 bg-black/50 md:hidden" onClick={() => setSidebarOpen(false)} />
+      )}
+
+      <aside className={`${sidebarOpen ? 'flex' : 'hidden'} fixed md:static inset-y-0 left-0 z-40 w-72 shrink-0 flex-col border-r border-gray-700 bg-gray-900`}>
         <div className="flex flex-col items-center border-b border-gray-700 p-4">
           <img
             src="/PDFInsight.png"
@@ -215,7 +228,11 @@ export default function Dashboard() {
               {history.map((entry) => (
                 <li
                   key={entry.id}
-                  className="flex items-start justify-between gap-2 rounded border border-gray-700 bg-gray-900 px-3 py-2"
+                  className={`flex items-start justify-between gap-2 rounded border px-3 py-2 ${
+                    selectedHistoryId === entry.id
+                      ? 'border-blue-500 bg-blue-950'
+                      : 'border-gray-700 bg-gray-900'
+                  }`}
                 >
                   <button
                     type="button"
@@ -247,13 +264,20 @@ export default function Dashboard() {
 
       <main className="flex flex-1 flex-col overflow-y-auto p-6">
         <div className="mx-auto w-full max-w-3xl">
+          <button
+            className="mb-4 rounded border border-gray-600 px-3 py-1 font-mono text-sm text-gray-400 hover:bg-gray-800"
+            onClick={() => setSidebarOpen((prev) => !prev)}
+          >
+            {sidebarOpen ? '✕ Close' : '☰ Menu'}
+          </button>
+
           {error ? (
             <div className="mb-4 rounded border border-red-500 bg-red-950 px-4 py-3 font-mono text-sm text-red-200">
               {error}
             </div>
           ) : null}
 
-          <h1 className="mb-6 font-mono text-4xl font-bold text-red-200">
+          <h1 className="mb-6 font-mono text-2xl md:text-4xl font-bold text-red-200">
             PDFInsight
           </h1>
 
@@ -334,7 +358,7 @@ export default function Dashboard() {
             ) : null}
           </section>
 
-          <section className="mb-4 flex gap-2">
+          <section className="mb-4 flex flex-col sm:flex-row gap-2">
             <input
               className="min-w-0 flex-1 rounded border border-gray-700 bg-gray-800 p-3 font-mono text-base text-white outline-none placeholder:text-gray-500 focus:border-blue-500"
               type="text"
@@ -367,6 +391,12 @@ export default function Dashboard() {
                   <h2 className="mb-3 font-mono text-sm font-bold text-blue-400">
                     Sources
                   </h2>
+
+                  {sourceError ? (
+                    <div className="mb-4 rounded border border-red-500 bg-red-950 px-4 py-3 font-mono text-sm text-red-200">
+                      {sourceError}
+                    </div>
+                  ) : null}
 
                   <ul className="space-y-3">
                     {answerSources.map((source, index) => (
