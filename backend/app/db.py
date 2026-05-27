@@ -2,6 +2,7 @@
 # Vectors are stored in Chroma, not this database
 
 import sqlite3
+from datetime import date
 from pathlib import Path
 from uuid import uuid4
 
@@ -53,6 +54,17 @@ def initialize_database(db_path: Path) -> None:
                 sources TEXT NOT NULL,
                 pdf_ids TEXT NOT NULL,
                 created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            )
+            """
+        )
+
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS usage (
+                username TEXT NOT NULL,
+                date TEXT NOT NULL,
+                count INTEGER NOT NULL DEFAULT 0,
+                PRIMARY KEY (username, date)
             )
             """
         )
@@ -199,3 +211,27 @@ def delete_chat_history_entry(db_path: Path, entry_id: str, username: str) -> di
         connection.execute("DELETE FROM chat_history WHERE id = ? AND username = ?", (entry_id, username))
 
     return entry
+
+
+def increment_usage(db_path: Path, username: str) -> None:
+    today = date.today().isoformat()
+    with get_connection(db_path) as connection:
+        connection.execute(
+            """
+            INSERT INTO usage (username, date, count)
+            VALUES (?, ?, 1)
+            ON CONFLICT(username, date) DO UPDATE SET count = count + 1
+            """,
+            (username, today),
+        )
+
+
+def get_usage(db_path: Path, username: str) -> dict[str, int]:
+    today = date.today().isoformat()
+    with get_connection(db_path) as connection:
+        row = connection.execute(
+            "SELECT count FROM usage WHERE username = ? AND date = ?",
+            (username, today),
+        ).fetchone()
+
+    return {"count": row["count"] if row else 0, "limit": 300}

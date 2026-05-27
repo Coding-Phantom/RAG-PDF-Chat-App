@@ -5,6 +5,7 @@ import {
   deletePdf,
   getHistory,
   getPdfs,
+  getUsage,
   getUsernameFromToken,
   streamAskQuestion,
   uploadPdf,
@@ -33,7 +34,9 @@ export default function Dashboard() {
   const [deletingHistoryId, setDeletingHistoryId] = useState('')
   const [selectedHistoryId, setSelectedHistoryId] = useState('')
   const [sourceError, setSourceError] = useState('')
-  const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [dragOver, setDragOver] = useState(false)
+  const [usage, setUsage] = useState<{ count: number; limit: number } | null>(null)
 
   useEffect(() => {
     async function loadPdfs() {
@@ -61,16 +64,22 @@ export default function Dashboard() {
       }
     }
 
-    loadPdfs()
-    loadHistory()
-  }, [])
-
-  async function handleUpload(event: React.ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0]
-    if (!file) {
-      return
+    async function loadUsage() {
+      try {
+        const result = await getUsage()
+        console.log('Usage result:', result)
+        setUsage(result)
+      } catch (err) {
+        console.error('Usage load failed:', err)
+      }
     }
 
+    loadPdfs()
+    loadHistory()
+    loadUsage()
+  }, [])
+
+  async function uploadFile(file: File) {
     setError('')
     setIsUploading(true)
 
@@ -78,7 +87,7 @@ export default function Dashboard() {
       const result = await uploadPdf(file)
       setPdfs((currentPdfs) => [result.pdf, ...currentPdfs])
       setSelectedPdfIds((currentIds) => [result.pdf.id, ...currentIds])
-      event.target.value = ''
+      getUsage().then(setUsage).catch(() => {})
     } catch (caughtError) {
       setError(
         caughtError instanceof Error
@@ -88,6 +97,42 @@ export default function Dashboard() {
     } finally {
       setIsUploading(false)
     }
+  }
+
+  async function handleUpload(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    await uploadFile(file)
+    event.target.value = ''
+  }
+
+  function handleDragOver(event: React.DragEvent) {
+    event.preventDefault()
+    event.stopPropagation()
+    setDragOver(true)
+  }
+
+  function handleDragLeave(event: React.DragEvent) {
+    event.preventDefault()
+    event.stopPropagation()
+    setDragOver(false)
+  }
+
+  function handleDrop(event: React.DragEvent) {
+    event.preventDefault()
+    event.stopPropagation()
+    setDragOver(false)
+
+    const file = event.dataTransfer.files?.[0]
+    if (!file) return
+
+    if (file.type !== 'application/pdf') {
+      setError('Only PDF files are accepted.')
+      return
+    }
+
+    uploadFile(file)
   }
 
   async function handleDelete(pdfId: string) {
@@ -132,7 +177,7 @@ export default function Dashboard() {
   function handleHistoryClick(entry: ChatHistoryEntry) {
     setStreamingAnswer(entry.answer)
     setAnswerSources(JSON.parse(entry.sources))
-    setQuestion('')
+    setQuestion(entry.question)
     setSelectedHistoryId(entry.id)
   }
 
@@ -177,6 +222,7 @@ export default function Dashboard() {
         () => {
           setIsAsking(false)
           getHistory().then(setHistory).catch(() => {})
+      getUsage().then(setUsage).catch(() => {})
         },
       )
     } catch (caughtError) {
@@ -215,6 +261,25 @@ export default function Dashboard() {
             </button>
           </div>
         </div>
+
+        {usage ? (
+          <div className="border-b border-gray-700 px-4 py-3">
+            <div className="flex items-center justify-between font-mono text-xs">
+              <span className="text-gray-400">Requests today</span>
+              <span className={usage.count > usage.limit * 0.8 ? 'text-yellow-400' : 'text-gray-300'}>
+                {usage.count} / {usage.limit}
+              </span>
+            </div>
+            <div className="mt-1.5 h-1.5 w-full rounded-full bg-gray-700">
+              <div
+                className={`h-full rounded-full transition-all ${
+                  usage.count > usage.limit * 0.8 ? 'bg-yellow-500' : 'bg-blue-500'
+                }`}
+                style={{ width: `${Math.min((usage.count / usage.limit) * 100, 100)}%` }}
+              />
+            </div>
+          </div>
+        ) : null}
 
         <div className="flex-1 overflow-y-auto p-4">
           <h2 className="mb-3 font-mono text-sm font-bold text-blue-400">
@@ -281,7 +346,13 @@ export default function Dashboard() {
             PDFInsight
           </h1>
 
-          <section className="mb-6 rounded bg-gray-800 p-4">
+          <section
+            className={`mb-6 rounded bg-gray-800 p-4 ${dragOver ? 'border-2 border-dashed border-blue-400' : 'border-2 border-transparent'}`}
+            onDragOver={handleDragOver}
+            onDragEnter={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+          >
             <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
               <h2 className="font-mono text-lg font-bold text-blue-400">
                 Loaded PDFs
@@ -301,6 +372,9 @@ export default function Dashboard() {
                   className="sr-only"
                 />
               </label>
+              <p className="w-full text-right font-mono text-xs text-gray-500">
+                or drag &amp; drop
+              </p>
             </div>
 
             {isLoading ? (
