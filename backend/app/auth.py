@@ -17,25 +17,21 @@ SECRET_KEY = os.getenv("SECRET_KEY")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_DAYS = 7
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto") # hash with bycript
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login") # retrieves token from request
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 
-# hash
 def hash_password(password: str) -> str:
     return pwd_context.hash(password)
 
-# check password with hash
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     return pwd_context.verify(plain_password, hashed_password)
 
-# create jwt token 
 def create_access_token(data: dict) -> str:
     to_encode = data.copy()
     expire = datetime.now(timezone.utc) + timedelta(days=ACCESS_TOKEN_EXPIRE_DAYS)
     to_encode.update({"exp": expire})
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
-# check if user is authenticated with jwt token
 def get_current_user_dependency(db_path: Path):
     def _get_current_user(token: str = Depends(oauth2_scheme)) -> dict[str, str]:
         credentials_exception = HTTPException(

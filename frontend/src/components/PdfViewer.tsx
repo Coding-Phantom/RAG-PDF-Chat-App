@@ -11,9 +11,10 @@ import { fetchPdfBlobUrl, type PdfRecord } from '../api'
 type PdfViewerProps = {
   pdfRecord: PdfRecord
   onClose: () => void
+  initialPage?: number
 }
 
-export default function PdfViewer({ pdfRecord, onClose }: PdfViewerProps) {
+export default function PdfViewer({ pdfRecord, onClose, initialPage }: PdfViewerProps) {
   const [numPages, setNumPages] = useState<number | null>(null)
   const [pdfPage, setPdfPage] = useState(1)
   const [pdfBlobUrl, setPdfBlobUrl] = useState('')
@@ -64,7 +65,7 @@ export default function PdfViewer({ pdfRecord, onClose }: PdfViewerProps) {
               file={pdfBlobUrl}
               onLoadSuccess={({ numPages: n }) => {
                 setNumPages(n)
-                setPdfPage(1)
+                setPdfPage(initialPage ?? 1)
               }}
               className="flex flex-col items-center"
             >

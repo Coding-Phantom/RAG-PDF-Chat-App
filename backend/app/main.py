@@ -1,6 +1,6 @@
 import json
 from pathlib import Path
-from uuid import uuid4 # uuid for identifying pdfs
+from uuid import uuid4
 
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, HTTPException, UploadFile
@@ -29,7 +29,6 @@ from auth import hash_password
 from auth import verify_password
 
 # rag imports
-from rag import answer_question_with_context
 from rag import delete_pdf_from_chroma
 from rag import EMBEDDING_MODEL
 from rag import index_pdf_in_chroma
@@ -111,7 +110,6 @@ class ChatHistoryEntryModel(BaseModel):
     pdf_ids: str
     created_at: str
 
-# make all text into string for consistency
 def normalize_model_message(message: object) -> str:
     if isinstance(message, list):
         return " ".join(

@@ -28,6 +28,7 @@ export default function Dashboard() {
   const [isAsking, setIsAsking] = useState(false)
   const [error, setError] = useState('')
   const [viewingPdf, setViewingPdf] = useState<PdfRecord | null>(null)
+  const [viewingPdfPage, setViewingPdfPage] = useState(1)
   const [history, setHistory] = useState<ChatHistoryEntry[]>([])
   const [deletingHistoryId, setDeletingHistoryId] = useState('')
 
@@ -111,6 +112,15 @@ export default function Dashboard() {
         ? currentIds.filter((id) => id !== pdfId)
         : [...currentIds, pdfId],
     )
+  }
+
+  function handleSourceClick(source: Source) {
+    const pdf = pdfs.find((p) => p.id === source.pdf_id)
+    if (pdf) {
+      const page = typeof source.page === 'string' ? parseInt(source.page) || 1 : source.page
+      setViewingPdfPage(page)
+      setViewingPdf(pdf)
+    }
   }
 
   function handleHistoryClick(entry: ChatHistoryEntry) {
@@ -303,7 +313,7 @@ export default function Dashboard() {
                     <div className="flex shrink-0 gap-2">
                       <button
                         type="button"
-                        onClick={() => setViewingPdf(pdf)}
+                        onClick={() => { setViewingPdfPage(1); setViewingPdf(pdf) }}
                         className="rounded border border-blue-500 px-3 py-1.5 text-xs font-semibold text-blue-300 hover:bg-blue-950"
                       >
                         View
@@ -362,7 +372,8 @@ export default function Dashboard() {
                     {answerSources.map((source, index) => (
                       <li
                         key={`${source.pdf_id}-${source.page}-${index}`}
-                        className="rounded border border-gray-700 bg-gray-900 p-3"
+                        className="cursor-pointer rounded border border-gray-700 bg-gray-900 p-3 hover:border-blue-500"
+                        onClick={() => handleSourceClick(source)}
                       >
                         <p className="font-mono text-xs font-bold text-gray-200">
                           {source.filename} · page {source.page}
@@ -381,7 +392,8 @@ export default function Dashboard() {
           {viewingPdf ? (
             <PdfViewer
               pdfRecord={viewingPdf}
-              onClose={() => setViewingPdf(null)}
+              initialPage={viewingPdfPage}
+              onClose={() => { setViewingPdf(null); setViewingPdfPage(1) }}
             />
           ) : null}
         </div>

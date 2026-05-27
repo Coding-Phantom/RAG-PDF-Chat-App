@@ -4,9 +4,7 @@
 import sqlite3
 from pathlib import Path
 from uuid import uuid4
-import uuid
 
-# Initialize db connection
 def get_connection(db_path: Path) -> sqlite3.Connection:
     connection = sqlite3.connect(db_path)
     connection.row_factory = sqlite3.Row
@@ -34,7 +32,7 @@ def initialize_database(db_path: Path) -> None:
             pass
 
         
-        connection.execute( # create table for users/accounts
+        connection.execute(
             """
             CREATE TABLE IF NOT EXISTS users (
                 username TEXT PRIMARY KEY,
@@ -45,7 +43,7 @@ def initialize_database(db_path: Path) -> None:
         )
 
 
-        connection.execute( # create table for chat history
+        connection.execute(
             """
             CREATE TABLE IF NOT EXISTS chat_history (
                 id TEXT PRIMARY KEY,
@@ -59,7 +57,6 @@ def initialize_database(db_path: Path) -> None:
             """
         )
 
-# add new pdf records into db, return as dict to confirm result
 def create_pdf_record(db_path: Path, pdf_id: str, username: str, filename: str, file_path: Path) -> dict[str, str]:
     with get_connection(db_path) as connection:
         connection.execute(
@@ -76,7 +73,7 @@ def create_pdf_record(db_path: Path, pdf_id: str, username: str, filename: str, 
 
     return pdf
 
-# list pdf records for a specific user
+
 def list_pdf_records(db_path: Path, username: str) -> list[dict[str, str]]:
     with get_connection(db_path) as connection:
         rows = connection.execute(
@@ -91,7 +88,7 @@ def list_pdf_records(db_path: Path, username: str) -> list[dict[str, str]]:
 
     return [dict(row) for row in rows]
 
-# retrieve pdf record from id, return as dict to confirm result
+
 def get_pdf_record(db_path: Path, pdf_id: str) -> dict[str, str] | None:
     with get_connection(db_path) as connection:
         row = connection.execute(
@@ -105,7 +102,7 @@ def get_pdf_record(db_path: Path, pdf_id: str) -> dict[str, str] | None:
 
     return dict(row) if row else None
 
-# delete pdf record by id, only if owned by the given user
+
 def delete_pdf_record(db_path: Path, pdf_id: str, username: str) -> dict[str, str] | None:
     pdf = get_pdf_record(db_path, pdf_id)
     if pdf is None:
@@ -120,7 +117,6 @@ def delete_pdf_record(db_path: Path, pdf_id: str, username: str) -> dict[str, st
     return pdf
 
 
-# create a new user, return the user dict
 def create_user(db_path: Path, username: str, hashed_password: str) -> dict[str, str]:
     with get_connection(db_path) as connection:
         connection.execute(
@@ -135,7 +131,6 @@ def create_user(db_path: Path, username: str, hashed_password: str) -> dict[str,
     return user
 
 
-# look up a user by username, return None if not found
 def get_user_by_username(db_path: Path, username: str) -> dict[str, str] | None:
     with get_connection(db_path) as connection:
         row = connection.execute(
@@ -146,7 +141,6 @@ def get_user_by_username(db_path: Path, username: str) -> dict[str, str] | None:
     return dict(row) if row else None
 
 
-# create entry in chat history for a user
 def create_chat_history_entry(db_path: Path, username: str, question: str, answer: str, sources: str, pdf_ids: str) -> dict[str, str]:
     chat_id = str(uuid4())
 
@@ -164,7 +158,6 @@ def create_chat_history_entry(db_path: Path, username: str, question: str, answe
     return entry
 
 
-# retrieve SINGLE chat history entry by id
 def get_chat_history_entry(db_path: Path, entry_id: str) -> dict[str, str] | None:
     with get_connection(db_path) as connection:
         row = connection.execute(
@@ -179,7 +172,6 @@ def get_chat_history_entry(db_path: Path, entry_id: str) -> dict[str, str] | Non
     return dict(row) if row else None
 
 
-# list ENTIRE chat history for a user
 def list_chat_history(db_path: Path, username: str) -> list[dict[str, str]]:
     with get_connection(db_path) as connection:
         rows = connection.execute(
@@ -195,7 +187,6 @@ def list_chat_history(db_path: Path, username: str) -> list[dict[str, str]]:
     return [dict(row) for row in rows]
 
 
-# delete chat history entry by id
 def delete_chat_history_entry(db_path: Path, entry_id: str, username: str) -> dict[str, str] | None:
     entry = get_chat_history_entry(db_path, entry_id)
     if entry is None:
