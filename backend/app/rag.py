@@ -13,6 +13,8 @@ COLLECTION_NAME = "pdf_chunks"
 # change model temporarily when out of tokens
 EMBEDDING_MODEL = "models/gemini-embedding-001"
 CHAT_MODEL = "gemini-3.5-flash"
+# CHAT_MODEL = "gemini-3-flash-preview"
+# CHAT_MODEL = "gemini-3.5-flash"
 
 
 def load_and_split_pdf(pdf_path: str | Path) -> list[Document]:
