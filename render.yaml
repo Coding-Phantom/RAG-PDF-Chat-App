@@ -5,9 +5,11 @@ services:
     rootDir: backend
     buildCommand: pip install -r requirements.txt
     startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
-    envVarGroups:
-      - rag-app-secrets
     envVars:
+      - key: GOOGLE_API_KEY
+        value: change-me-in-render-dashboard
+      - key: SECRET_KEY
+        value: change-me-in-render-dashboard
       - key: FRONTEND_URL
         value: https://rag-frontend.onrender.com
 
