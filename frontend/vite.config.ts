@@ -16,6 +16,7 @@ export default defineConfig({
       '/pdfs': 'http://127.0.0.1:8000',
       '/ask': 'http://127.0.0.1:8000',
       '/history': 'http://127.0.0.1:8000',
+      '/usage': 'http://127.0.0.1:8000',
     },
   },
 })

@@ -17,7 +17,9 @@ from db import create_user
 from db import delete_chat_history_entry
 from db import delete_pdf_record
 from db import get_pdf_record
+from db import get_usage
 from db import get_user_by_username
+from db import increment_usage
 from db import initialize_database
 from db import list_chat_history
 from db import list_pdf_records
@@ -214,6 +216,8 @@ async def upload_pdf(
             filename=safe_filename,
             file_path=stored_filename,
         )
+
+        increment_usage(DB_PATH, current_user["username"])
     except Exception as error:
         if pdf_path.exists():
             pdf_path.unlink()
@@ -294,6 +298,12 @@ def delete_chat_history(
         raise HTTPException(status_code=404, detail="History entry not found")
 
     return {"status": "deleted", "entry_id": entry_id}
+
+
+# get usage count for current user
+@app.get("/usage")
+def usage(current_user: dict[str, str] = Depends(get_current_user)) -> dict[str, int]:
+    return get_usage(DB_PATH, current_user["username"])
 
 
 # Gemini Ask Question API (non streamed)
@@ -394,6 +404,8 @@ def ask_question_stream(
             json.dumps(sources),
             json.dumps(request.pdf_ids),
         )
+
+        increment_usage(DB_PATH, current_user["username"])
 
     return StreamingResponse(generate(), media_type="text/event-stream")
 

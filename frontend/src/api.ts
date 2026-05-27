@@ -163,6 +163,11 @@ export async function askQuestion(
   return parseResponse<AskResponse>(response)
 }
 
+export async function getUsage(): Promise<{ count: number; limit: number }> {
+  const response = await authFetch(`${API_URL}/usage`)
+  return parseResponse<{ count: number; limit: number }>(response)
+}
+
 export async function getHistory(): Promise<ChatHistoryEntry[]> {
   const response = await authFetch(`${API_URL}/history`)
   return parseResponse<ChatHistoryEntry[]>(response)

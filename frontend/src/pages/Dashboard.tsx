@@ -5,6 +5,7 @@ import {
   deletePdf,
   getHistory,
   getPdfs,
+  getUsage,
   getUsernameFromToken,
   streamAskQuestion,
   uploadPdf,
@@ -33,7 +34,8 @@ export default function Dashboard() {
   const [deletingHistoryId, setDeletingHistoryId] = useState('')
   const [selectedHistoryId, setSelectedHistoryId] = useState('')
   const [sourceError, setSourceError] = useState('')
-  const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [usage, setUsage] = useState<{ count: number; limit: number } | null>(null)
 
   useEffect(() => {
     async function loadPdfs() {
@@ -61,8 +63,19 @@ export default function Dashboard() {
       }
     }
 
+    async function loadUsage() {
+      try {
+        const result = await getUsage()
+        console.log('Usage result:', result)
+        setUsage(result)
+      } catch (err) {
+        console.error('Usage load failed:', err)
+      }
+    }
+
     loadPdfs()
     loadHistory()
+    loadUsage()
   }, [])
 
   async function handleUpload(event: React.ChangeEvent<HTMLInputElement>) {
@@ -78,6 +91,7 @@ export default function Dashboard() {
       const result = await uploadPdf(file)
       setPdfs((currentPdfs) => [result.pdf, ...currentPdfs])
       setSelectedPdfIds((currentIds) => [result.pdf.id, ...currentIds])
+      getUsage().then(setUsage).catch(() => {})
       event.target.value = ''
     } catch (caughtError) {
       setError(
@@ -177,6 +191,7 @@ export default function Dashboard() {
         () => {
           setIsAsking(false)
           getHistory().then(setHistory).catch(() => {})
+      getUsage().then(setUsage).catch(() => {})
         },
       )
     } catch (caughtError) {
@@ -215,6 +230,25 @@ export default function Dashboard() {
             </button>
           </div>
         </div>
+
+        {usage ? (
+          <div className="border-b border-gray-700 px-4 py-3">
+            <div className="flex items-center justify-between font-mono text-xs">
+              <span className="text-gray-400">Requests today</span>
+              <span className={usage.count > usage.limit * 0.8 ? 'text-yellow-400' : 'text-gray-300'}>
+                {usage.count} / {usage.limit}
+              </span>
+            </div>
+            <div className="mt-1.5 h-1.5 w-full rounded-full bg-gray-700">
+              <div
+                className={`h-full rounded-full transition-all ${
+                  usage.count > usage.limit * 0.8 ? 'bg-yellow-500' : 'bg-blue-500'
+                }`}
+                style={{ width: `${Math.min((usage.count / usage.limit) * 100, 100)}%` }}
+              />
+            </div>
+          </div>
+        ) : null}
 
         <div className="flex-1 overflow-y-auto p-4">
           <h2 className="mb-3 font-mono text-sm font-bold text-blue-400">
